@@ -48,4 +48,4 @@ async def startup_event():
 # Graceful shutdown
 @app.on_event("shutdown")
 async def shutdown_event():
-    print("PhotonTroppers API shutting down")
+    print("PhotonTroppers API shutting down") 
