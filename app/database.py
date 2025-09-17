@@ -11,3 +11,6 @@ key: str = os.environ.get("SUPABASE_KEY")
 
 # Create Supabase client
 supabase: Client = create_client(url, key)
+
+
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")

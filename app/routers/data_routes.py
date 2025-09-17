@@ -4,7 +4,7 @@ from app.schemas import SensorData
 
 router = APIRouter()
 
-@router.post("/data")
+@router.post("/")
 def insert_data(data: SensorData):
     try:
         # Convert the Pydantic model to dict and handle datetime serialization

@@ -3,7 +3,7 @@ from app.utils.trainer import fetch_data, train_models, upload_model
 
 router = APIRouter()
 
-@router.post("/train/{factory_medicine_id}")
+@router.post("/{factory_medicine_id}")
 def train(factory_medicine_id: str):
     try:
         df = fetch_data(factory_medicine_id)

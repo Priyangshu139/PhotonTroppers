@@ -20,3 +20,15 @@ class SensorData(BaseModel):
     taste_umami: Optional[float] = None
     quality: Optional[float] = None
     dilution: Optional[float] = None
+
+
+class PicronData(BaseModel):
+    taste_sweet: float
+    taste_salty: float
+    taste_bitter: float
+    taste_sour: float
+    taste_umami: float
+    quality: float
+    dilution: float
+    status: int
+    factory: Optional[str] = None
