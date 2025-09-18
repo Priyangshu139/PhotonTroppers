@@ -5,18 +5,17 @@ import io
 router = APIRouter()
 
 @router.get("/{factory_medicine}")
-def get_picron_script(factory_medicine: str, request: Request):
+def get_picron_script_installer(factory_medicine: str, request: Request):
     """
-    Generates and serves a Python script for the Picron device.
-    The script is customized with the factory_medicine_id and the server's base URL.
+    Generates a shell script that creates and runs the Picron Python script.
     """
-
     # Dynamically determine the base URL from the incoming request
     base_url = f"{request.url.scheme}://{request.url.netloc}"
+    python_filename = f"{factory_medicine}.py"
 
-    # The full Python script content as a multi-line string
-    # The FACTORY_MEDICINE_ID and BASE_URL are dynamically inserted.
-    script_content = f'''
+    # The full Python script content is defined first.
+    # Note: All curly braces {} are doubled to {{}} to escape them in the f-string.
+    python_script_content = f'''
 import smbus
 import time
 import struct
@@ -30,8 +29,8 @@ from datetime import datetime
 import sys
 
 # --- API Configuration ---
-BASE_URL = "{base_url}"  # Automatically set by the server
-FACTORY_MEDICINE_ID = "{factory_medicine}" # Automatically set by the server
+BASE_URL = "{base_url}"
+FACTORY_MEDICINE_ID = "{factory_medicine}"
 
 # --- Hardware Configuration ---
 IR_SENSOR_PIN = 16
@@ -75,15 +74,15 @@ class AS726X:
         try:
             self.sensor_version = self.virtual_read_register(AS726x_HW_VERSION)
             if self.sensor_version != SENSORTYPE_AS7263:
-                print(f"❌ Invalid sensor version: 0x{{self.sensor_version:02X}}")
+                print(f"❌ Invalid sensor version: {{self.sensor_version:02X}}")
                 return False
-            self.virtual_write_register(AS726x_INT_T, 50) # Integration time
+            self.virtual_write_register(AS726x_INT_T, 50)
             value = self.virtual_read_register(AS726x_CONTROL_SETUP)
             value &= 0b11000011
             value |= (gain << 4) | (measurement_mode << 2)
-            self.virtual_write_register(AS726x_CONTROL_SETUP, value) # Gain & Mode
+            self.virtual_write_register(AS726x_CONTROL_SETUP, value)
             value = self.virtual_read_register(AS726x_LED_CONTROL)
-            value &= 0b11111110 # Disable indicator LED
+            value &= 0b11111110
             self.virtual_write_register(AS726x_LED_CONTROL, value)
             return True
         except Exception as e:
@@ -93,9 +92,9 @@ class AS726X:
     def take_measurements(self):
         try:
             value = self.virtual_read_register(AS726x_CONTROL_SETUP)
-            value &= ~(1 << 1) # Clear DATA_RDY
+            value &= ~(1 << 1)
             self.virtual_write_register(AS726x_CONTROL_SETUP, value)
-            value |= (3 << 2) # Set to Mode 3
+            value |= (3 << 2)
             self.virtual_write_register(AS726x_CONTROL_SETUP, value)
             start_time = time.time()
             while not (self.virtual_read_register(AS726x_CONTROL_SETUP) & (1 << 1)):
@@ -152,7 +151,6 @@ class AS726X:
             return 0
         except Exception: return -1
 
-# --- Helper Functions ---
 def exponential_weighted_average(previous, current, alpha):
     if previous is None: return current
     return alpha * current + (1 - alpha) * previous
@@ -162,7 +160,6 @@ def is_ir_sensor_active():
     return not ir_state if IR_SENSOR_ACTIVE_LOW else ir_state
 
 def reset_status():
-    """Gets the current picron row and posts an update to set status to 0."""
     print("\\n🔄 Attempting to reset status to 0...")
     try:
         url_get = f"{{BASE_URL}}/picron/{{FACTORY_MEDICINE_ID}}"
@@ -184,7 +181,6 @@ def reset_status():
         print(f"💥 API connection error during reset: {{e}}")
 
 def handle_status_reset_with_countdown():
-    """Waits for sample to be removed, then starts a 15s countdown to reset status."""
     print("\\n✅ Measurement complete. Please remove the sample.")
     while is_ir_sensor_active():
         time.sleep(0.2)
@@ -198,9 +194,7 @@ def handle_status_reset_with_countdown():
             return
     reset_status()
 
-# --- Main Flow Functions ---
 def take_all_readings():
-    """Waits for IR trigger, takes readings, and returns averaged values."""
     print("Waiting for sample placement...")
     while not is_ir_sensor_active():
         time.sleep(0.2)
@@ -240,32 +234,24 @@ def take_all_readings():
     return weighted_spectral_values, weighted_alcohol_value
 
 def handle_dataset_flow(row):
-    """Handles Status 1: Take readings and POST to /data/ endpoint."""
     print("\\n--- STATUS 1: DATASET ENTRY ---")
     spectral, alcohol = take_all_readings()
     
     if spectral is None or alcohol is None:
         print("Measurement failed. Skipping API post.")
-        reset_status() # Reset status even on failure to avoid getting stuck
+        reset_status()
         return
 
     payload = {{
         "factory_medicine_id": FACTORY_MEDICINE_ID,
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "temperature": 0, # Placeholder
+        "temperature": 0,
         "mq3_ppm": alcohol,
-        "as7263_r": spectral[0],
-        "as7263_s": spectral[1],
-        "as7263_t": spectral[2],
-        "as7263_u": spectral[3],
-        "as7263_v": spectral[4],
-        "as7263_w": spectral[5],
-        "taste_sweet": row.get("taste_sweet", 0),
-        "taste_salty": row.get("taste_salty", 0),
-        "taste_bitter": row.get("taste_bitter", 0),
-        "taste_sour": row.get("taste_sour", 0),
-        "taste_umami": row.get("taste_umami", 0),
-        "quality": row.get("quality", "N/A"),
+        "as7263_r": spectral[0], "as7263_s": spectral[1], "as7263_t": spectral[2],
+        "as7263_u": spectral[3], "as7263_v": spectral[4], "as7263_w": spectral[5],
+        "taste_sweet": row.get("taste_sweet", 0), "taste_salty": row.get("taste_salty", 0),
+        "taste_bitter": row.get("taste_bitter", 0), "taste_sour": row.get("taste_sour", 0),
+        "taste_umami": row.get("taste_umami", 0), "quality": row.get("quality", "N/A"),
         "dilution": row.get("dilution", 1.0),
     }}
 
@@ -283,24 +269,18 @@ def handle_dataset_flow(row):
     handle_status_reset_with_countdown()
 
 def handle_predict_flow():
-    """Handles Status 2: Take readings and POST to /predict/ endpoint."""
     print("\\n--- STATUS 2: PREDICTION ---")
     spectral, alcohol = take_all_readings()
     
     if spectral is None or alcohol is None:
         print("Measurement failed. Skipping API post.")
-        reset_status() # Reset status even on failure to avoid getting stuck
+        reset_status()
         return
 
     payload = {{
-        "temperature": 0, # Placeholder
-        "mq3_ppm": alcohol,
-        "as7263_r": spectral[0],
-        "as7263_s": spectral[1],
-        "as7263_t": spectral[2],
-        "as7263_u": spectral[3],
-        "as7263_v": spectral[4],
-        "as7263_w": spectral[5],
+        "temperature": 0, "mq3_ppm": alcohol, "as7263_r": spectral[0],
+        "as7263_s": spectral[1], "as7263_t": spectral[2], "as7263_u": spectral[3],
+        "as7263_v": spectral[4], "as7263_w": spectral[5],
     }}
     
     try:
@@ -317,7 +297,6 @@ def handle_predict_flow():
     handle_status_reset_with_countdown()
 
 def poll_picron():
-    """Main loop to poll the picron API and trigger the correct flow."""
     while True:
         try:
             url = f"{{BASE_URL}}/picron/{{FACTORY_MEDICINE_ID}}"
@@ -345,7 +324,6 @@ def poll_picron():
 
 if __name__ == "__main__":
     try:
-        # --- Initialize Hardware ---
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(IR_SENSOR_PIN, GPIO.IN)
         GPIO.setup(ACCESS_DOOR_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
@@ -371,7 +349,6 @@ if __name__ == "__main__":
             print(f"❌ CRITICAL: Could not initialize AS7263 sensor: {{e}}. Exiting.")
             sys.exit(1)
 
-        # --- Start Main Application Logic ---
         print("\\n--- System Ready ---")
         poll_picron()
 
@@ -382,12 +359,34 @@ if __name__ == "__main__":
         print("GPIO cleaned up. Exiting.")
 '''
 
-    # Create an in-memory file-like object from the script content
-    file_like = io.BytesIO(script_content.encode("utf-8"))
+    # Now, create the shell script that will contain the Python script
+    # A 'here document' (cat <<'EOF') is used to safely write the multi-line Python script to a file.
+    shell_script_content = f"""#!/bin/bash
+# Installer and runner script for Picron device
 
-    # Return the script as a downloadable file
+echo "--- Creating Python script: {python_filename} ---"
+
+# Use a 'here document' to write the Python script to a file.
+# The 'EOF' is quoted to prevent the shell from expanding variables ($) inside the block.
+cat > "{python_filename}" <<'EOF'
+{python_script_content}
+EOF
+
+echo "--- Python script created successfully. ---"
+echo "--- Making the script executable (optional, for consistency) ---"
+chmod +x "{python_filename}"
+
+echo "--- Running the Python script... ---"
+# Run the newly created Python file
+python3 "{python_filename}"
+"""
+
+    # Create an in-memory file-like object from the shell script content
+    file_like = io.BytesIO(shell_script_content.encode("utf-8"))
+
+    # Return the shell script as a downloadable file
     return StreamingResponse(
         file_like,
-        media_type="text/x-python",
-        headers={"Content-Disposition": f"attachment; filename={factory_medicine}.py"}
+        media_type="application/x-sh",
+        headers={"Content-Disposition": f"attachment; filename={factory_medicine}.sh"}
     )
