@@ -24,6 +24,7 @@ class SensorInput(BaseModel):
     as7263_v: float
     as7263_w: float
 
+
 def load_models(factory_medicine_id: str):
     """Load scaler and models from local MODELS_DIR. Raises FileNotFoundError if missing."""
     paths = {
@@ -41,6 +42,8 @@ def load_models(factory_medicine_id: str):
             models[key] = pickle.load(f)
     return models
 
+
+# POST → Predict and insert into DB
 @router.post("/{factory_medicine_id}")
 def predict(factory_medicine_id: str, data: SensorInput):
     try:
@@ -53,25 +56,17 @@ def predict(factory_medicine_id: str, data: SensorInput):
         X_scaled = models["scaler"].transform(X)
 
         # 3) Predict
-        taste_pred = models["taste"].predict(X_scaled).tolist()[0]          # list of 5 floats
-        quality_pred = models["quality"].predict(X_scaled).tolist()[0]     # maybe single float or array
+        taste_pred = models["taste"].predict(X_scaled).tolist()[0]
+        quality_pred = models["quality"].predict(X_scaled).tolist()[0]
         dilution_pred = models["dilution"].predict(X_scaled).tolist()[0]
 
-        # normalize outputs to python floats
+        # normalize outputs
         taste_pred = [float(x) for x in taste_pred]
-        # if quality_pred/dilution_pred are arrays, extract first element
-        if isinstance(quality_pred, (list, tuple, np.ndarray)):
-            quality_val = float(quality_pred[0])
-        else:
-            quality_val = float(quality_pred)
+        quality_val = float(quality_pred[0]) if isinstance(quality_pred, (list, tuple, np.ndarray)) else float(quality_pred)
+        dilution_val = float(dilution_pred[0]) if isinstance(dilution_pred, (list, tuple, np.ndarray)) else float(dilution_pred)
 
-        if isinstance(dilution_pred, (list, tuple, np.ndarray)):
-            dilution_val = float(dilution_pred[0])
-        else:
-            dilution_val = float(dilution_pred)
-
-        # 4) Build DB row for predicted_data
-        timestamp = datetime.utcnow().isoformat()  # use UTC timestamp
+        # 4) Build DB row
+        timestamp = datetime.utcnow().isoformat()
         row = {
             "factory_medicine_id": factory_medicine_id,
             "timestamp": timestamp,
@@ -90,19 +85,15 @@ def predict(factory_medicine_id: str, data: SensorInput):
             "taste_umami": taste_pred[4],
             "quality": quality_val,
             "dilution": dilution_val,
-            # optional:
             "model_version": f"{factory_medicine_id}_v1"
         }
 
         # 5) Insert into Supabase
         res = supabase.table("predicted_data").insert(row).execute()
-
-        # supabase response handling
         if hasattr(res, "error") and res.error:
-            # supabase-py sometimes returns .error; handle gracefully
             raise Exception(f"DB insert error: {res.error}")
 
-        # 6) Return predictions + DB metadata
+        # 6) Return predictions
         return {
             "status": "success",
             "prediction": {
@@ -123,3 +114,26 @@ def predict(factory_medicine_id: str, data: SensorInput):
         raise HTTPException(status_code=404, detail=str(fnf))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+# GET → Fetch predictions from DB
+@router.get("/{factory_medicine_id}")
+def get_predictions(factory_medicine_id: str):
+    try:
+        print(f"🔹 Fetching predictions for {factory_medicine_id}...")
+
+        res = supabase.table("predicted_data")\
+                      .select("*")\
+                      .eq("factory_medicine_id", factory_medicine_id)\
+                      .order("timestamp", desc=True)\
+                      .limit(20)\
+                      .execute()
+
+        if not res.data:
+            raise HTTPException(status_code=404, detail="No predictions found for this factory_medicine_id")
+
+        print("✅ Retrieved predictions")
+        return {"status": "success", "data": res.data}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
