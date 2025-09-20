@@ -74,7 +74,7 @@ class AS726X:
         try:
             self.sensor_version = self.virtual_read_register(AS726x_HW_VERSION)
             if self.sensor_version != SENSORTYPE_AS7263:
-                print(f"❌ Invalid sensor version: {{self.sensor_version:02X}}")
+                print(f" Invalid sensor version: {{self.sensor_version:02X}}")
                 return False
             self.virtual_write_register(AS726x_INT_T, 50)
             value = self.virtual_read_register(AS726x_CONTROL_SETUP)
@@ -86,7 +86,7 @@ class AS726X:
             self.virtual_write_register(AS726x_LED_CONTROL, value)
             return True
         except Exception as e:
-            print(f"❌ Error initializing sensor: {{e}}")
+            print(f" Error initializing sensor: {{e}}")
             return False
 
     def take_measurements(self):
@@ -103,7 +103,7 @@ class AS726X:
                     raise Exception("Timeout waiting for data")
             return True
         except Exception as e:
-            print(f"❌ Error taking measurements: {{e}}")
+            print(f" Error taking measurements: {{e}}")
             return False
 
     def get_calibrated_values(self):
@@ -160,12 +160,12 @@ def is_ir_sensor_active():
     return not ir_state if IR_SENSOR_ACTIVE_LOW else ir_state
 
 def reset_status():
-    print("\\n🔄 Attempting to reset status to 0...")
+    print("\\n Attempting to reset status to 0...")
     try:
         url_get = f"{{BASE_URL}}/picron/{{FACTORY_MEDICINE_ID}}"
         res = requests.get(url_get, timeout=5)
         if res.status_code != 200:
-            print(f"❌ Failed fetching current picron row for reset: {{res.text}}")
+            print(f" Failed fetching current picron row for reset: {{res.text}}")
             return
         row = res.json().get("data", [{{}}])[0]
         payload = {{k: row.get(k) for k in ["factory_medicine_id", "taste_sweet", "taste_salty", "taste_bitter", "taste_sour", "taste_umami", "quality", "dilution", "factory"]}}
@@ -174,23 +174,23 @@ def reset_status():
         url_post = f"{{BASE_URL}}/picron/{{FACTORY_MEDICINE_ID}}"
         res = requests.post(url_post, json=payload, timeout=5)
         if res.status_code == 200:
-            print("✅ Status successfully reset to 0.")
+            print(" Status successfully reset to 0.")
         else:
-            print(f"❌ Failed to reset status: {{res.text}}")
+            print(f" Failed to reset status: {{res.text}}")
     except requests.exceptions.RequestException as e:
-        print(f"💥 API connection error during reset: {{e}}")
+        print(f" API connection error during reset: {{e}}")
 
 def handle_status_reset_with_countdown():
-    print("\\n✅ Measurement complete. Please remove the sample.")
+    print("\\n Measurement complete. Please remove the sample.")
     while is_ir_sensor_active():
         time.sleep(0.2)
     
-    print("🕒 Sample removed. Starting 15-second countdown to reset status.")
+    print(" Sample removed. Starting 15-second countdown to reset status.")
     for i in range(15, 0, -1):
         print(f"Resetting in {{i}} seconds... (Do not re-insert sample)")
         time.sleep(1)
         if is_ir_sensor_active():
-            print("\\n⚠️ Countdown aborted! Sample re-detected. Reset cancelled.")
+            print("\\n Countdown aborted! Sample re-detected. Reset cancelled.")
             return
     reset_status()
 
@@ -199,11 +199,11 @@ def take_all_readings():
     while not is_ir_sensor_active():
         time.sleep(0.2)
     
-    print(f"🔬 Sample detected. Waiting {{DELAY_AFTER_TRIGGER}}s before measurement...")
+    print(f" Sample detected. Waiting {{DELAY_AFTER_TRIGGER}}s before measurement...")
     time.sleep(DELAY_AFTER_TRIGGER)
 
     if not is_ir_sensor_active():
-        print("❌ Sample removed prematurely. Aborting.")
+        print(" Sample removed prematurely. Aborting.")
         return None, None
 
     weighted_spectral_values = None
@@ -212,7 +212,7 @@ def take_all_readings():
 
     for i in range(NUM_READINGS):
         if not is_ir_sensor_active():
-            print(f"❌ Sample removed after {{readings_taken}} readings. Aborting.")
+            print(f" Sample removed after {{readings_taken}} readings. Aborting.")
             return None, None
         
         print(f"    Reading {{i+1}}/{{NUM_READINGS}}...")
@@ -257,14 +257,14 @@ def handle_dataset_flow(row):
 
     try:
         url = f"{{BASE_URL}}/data/"
-        print("📤 Sending data to API...")
+        print(" Sending data to API...")
         res = requests.post(url, json=payload, timeout=10)
         if res.status_code == 200:
-            print("✅ Dataset POST successful:", res.json())
+            print(" Dataset POST successful:", res.json())
         else:
-            print(f"❌ Dataset POST failed: {{res.status_code}} {{res.text}}")
+            print(f" Dataset POST failed: {{res.status_code}} {{res.text}}")
     except requests.exceptions.RequestException as e:
-        print(f"💥 API connection error: {{e}}")
+        print(f" API connection error: {{e}}")
 
     handle_status_reset_with_countdown()
 
@@ -285,14 +285,14 @@ def handle_predict_flow():
     
     try:
         url = f"{{BASE_URL}}/predict/{{FACTORY_MEDICINE_ID}}"
-        print("📤 Sending data to API for prediction...")
+        print(" Sending data to API for prediction...")
         res = requests.post(url, json=payload, timeout=10)
         if res.status_code == 200:
-            print("✅ Predict POST successful:", res.json())
+            print(" Predict POST successful:", res.json())
         else:
-            print(f"❌ Predict POST failed: {{res.status_code}} {{res.text}}")
+            print(f" Predict POST failed: {{res.status_code}} {{res.text}}")
     except requests.exceptions.RequestException as e:
-        print(f"💥 API connection error: {{e}}")
+        print(f" API connection error: {{e}}")
 
     handle_status_reset_with_countdown()
 
@@ -305,7 +305,7 @@ def poll_picron():
             if res.status_code == 200:
                 data = res.json().get("data", [])
                 if not data:
-                    print(f"⚠️ No picron row found for {{FACTORY_MEDICINE_ID}}")
+                    print(f" No picron row found for {{FACTORY_MEDICINE_ID}}")
                 else:
                     row = data[0]
                     status = row.get("status", 0)
@@ -314,11 +314,11 @@ def poll_picron():
                     elif status == 2:
                         handle_predict_flow()
                     else:
-                        print(f"⏳ Waiting... current status is {{status}}.")
+                        print(f" Waiting... current status is {{status}}.")
             else:
-                print(f"❌ Failed to fetch picron: {{res.text}}")
+                print(f" Failed to fetch picron: {{res.text}}")
         except requests.exceptions.RequestException as e:
-            print(f"💥 API connection error while polling: {{e}}")
+            print(f" API connection error while polling: {{e}}")
         
         time.sleep(5)
 
@@ -334,19 +334,19 @@ if __name__ == "__main__":
             ads.gain = 1
             alcohol_chan = AnalogIn(ads, ADS.P0)
             alcohol_sensor_available = True
-            print("✅ Alcohol sensor initialized.")
+            print(" Alcohol sensor initialized.")
         except Exception as e:
-            print(f"⚠️ Failed to initialize alcohol sensor: {{e}}")
+            print(f" Failed to initialize alcohol sensor: {{e}}")
             alcohol_sensor_available = False
 
         try:
             sensor = AS726X()
             if sensor.begin():
-                print("✅ AS7263 sensor initialized.")
+                print(" AS7263 sensor initialized.")
             else:
                 raise RuntimeError("Failed to begin AS7263 sensor.")
         except Exception as e:
-            print(f"❌ CRITICAL: Could not initialize AS7263 sensor: {{e}}. Exiting.")
+            print(f" CRITICAL: Could not initialize AS7263 sensor: {{e}}. Exiting.")
             sys.exit(1)
 
         print("\\n--- System Ready ---")
