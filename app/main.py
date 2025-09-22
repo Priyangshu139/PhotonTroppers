@@ -1,7 +1,7 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import predict_routes, train_routes, data_routes, getdata_routes, picron_routes, telegram_routes, telegram_notify_routes, shell_routes
+from app.routers import predict_routes, train_routes, data_routes, getdata_routes, picron_routes, telegram_routes, telegram_notify_routes, shell_routes, livesensor_routes   
 
 
 
@@ -45,7 +45,7 @@ app.include_router(picron_routes.router, prefix="/picron", tags=["Picron"])
 app.include_router(telegram_routes.router, prefix="/telegram", tags=["Telegram"])
 app.include_router(telegram_notify_routes.router, tags=["TelegramNotify"])
 app.include_router(shell_routes.router, prefix="/shell", tags=["Shell"])
-
+app.include_router(livesensor_routes.router, prefix="/livesensor", tags=["Live Sensor"])
 
 
 

@@ -32,3 +32,15 @@ class PicronData(BaseModel):
     dilution: float
     status: int
     factory: Optional[str] = None
+
+
+class LiveSensor(BaseModel):
+    factory_medicine_id: str
+    timestamp: datetime
+    mq3_ppm: float
+    as7263_r: float
+    as7263_s: float
+    as7263_t: float
+    as7263_u: float
+    as7263_v: float
+    as7263_w: float
